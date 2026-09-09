@@ -1,0 +1,40 @@
+name: Generate APK
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Website URL'
+        required: true
+      app_name:
+        description: 'App Name'
+        required: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Cordova
+        run: npm install -g cordova
+      - name: Create App
+        run: |
+          cordova create app com.my.app "${{ github.event.inputs.app_name }}"
+          cd app
+          cordova platform add android
+          sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
+          sed -i 's|</widget>|    <allow-navigation href="*" />\n</widget>|g' config.xml
+          cordova build android
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.app_name }}-APK
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk

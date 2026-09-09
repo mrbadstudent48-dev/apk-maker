@@ -8,6 +8,9 @@ on:
       app_name:
         description: 'App Name'
         required: true
+      icon_url:
+        description: 'App Icon URL'
+        required: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,7 +33,8 @@ jobs:
           cordova create app com.my.app "${{ github.event.inputs.app_name }}"
           cd app
           cordova platform add android
-          sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
+          wget -O icon.png "${{ github.event.inputs.icon_url }}"
+          sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />\n    <icon src="icon.png" />|g' config.xml
           sed -i 's|</widget>|    <allow-navigation href="*" />\n</widget>|g' config.xml
           cordova build android
       - name: Upload APK

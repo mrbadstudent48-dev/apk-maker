@@ -19,12 +19,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # এই নতুন স্টেপটি যোগ করা হয়েছে, যা গিটহাবকে ফোল্ডার চিনতে সাহায্য করবে
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -43,7 +47,7 @@ jobs:
           sed -i 's|</widget>|    <icon src="icon.png" />\n    <allow-navigation href="*" />\n    <preference name="Fullscreen" value="true" />\n</widget>|g' config.xml
           cordova build android
           
-      - name: Publish to GitHub Releases (Microsoft CDN)
+      - name: Publish to GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

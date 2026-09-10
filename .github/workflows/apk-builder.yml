@@ -11,6 +11,11 @@ on:
       icon_url:
         description: 'App Icon URL'
         required: true
+
+# রিলিজ তৈরি করার পারমিশন
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,20 +38,19 @@ jobs:
           cordova create app com.webapk.app${{ github.run_id }} "${{ github.event.inputs.app_name }}"
           cd app
           cordova platform add android
-          
-          # লোগো ডাউনলোড
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
-          
-          # URL এবং অন্যান্য সেটিংস কনফিগার করা
           sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
-          
-          # স্প্ল্যাশ স্ক্রিন, ফুল স্ক্রিন এবং অন্যান্য কাস্টম ফিচার ইনজেক্ট করা
           sed -i 's|</widget>|    <icon src="icon.png" />\n    <allow-navigation href="*" />\n    <preference name="Fullscreen" value="true" />\n    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="icon.png" />\n    <preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />\n    <preference name="Orientation" value="portrait" />\n    <preference name="DisallowOverscroll" value="true" />\n</widget>|g' config.xml
-          
-          # অ্যাপ বিল্ড করা
           cordova build android
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.inputs.app_name }}-APK
-          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          
+      - name: Publish to GitHub Releases (Microsoft CDN)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # নামের মাঝখানের স্পেস সরিয়ে ফেলা হচ্ছে (URL ঠিক রাখার জন্য)
+          SAFE_NAME=$(echo "${{ github.event.inputs.app_name }}" | tr -cd 'A-Za-z0-9_-')
+          APK_PATH="app/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          mv "$APK_PATH" "./${SAFE_NAME}.apk"
+          
+          # অটোমেটিক পাবলিক রিলিজ তৈরি করা
+          gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"

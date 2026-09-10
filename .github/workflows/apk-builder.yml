@@ -19,10 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # এই নতুন স্টেপটি যোগ করা হয়েছে, যা গিটহাবকে ফোল্ডার চিনতে সাহায্য করবে
       - name: Checkout Repository
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -51,6 +49,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # ইউজারের দেওয়া নাম থেকে স্পেস ও স্পেশাল ক্যারেক্টার মুছে ক্লিন নাম তৈরি করা হচ্ছে
+          SAFE_NAME=$(echo "${{ github.event.inputs.app_name }}" | tr -cd 'A-Za-z0-9_-')
+          if [ -z "$SAFE_NAME" ]; then SAFE_NAME="App"; fi
+          
           APK_PATH="app/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
-          mv "$APK_PATH" "./app.apk"
-          gh release create "v${{ github.run_id }}" "./app.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"
+          mv "$APK_PATH" "./${SAFE_NAME}.apk"
+          gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"

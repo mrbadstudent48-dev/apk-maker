@@ -12,7 +12,6 @@ on:
         description: 'App Icon URL'
         required: true
 
-# রিলিজ তৈরি করার পারমিশন
 permissions:
   contents: write
 
@@ -35,22 +34,19 @@ jobs:
         run: npm install -g cordova
       - name: Create App
         run: |
-          cordova create app com.webapk.app${{ github.run_id }} "${{ github.event.inputs.app_name }}"
+          cordova create app com.webapk.app${{ github.run_id }} "App"
           cd app
           cordova platform add android
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
+          sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
           sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
-          sed -i 's|</widget>|    <icon src="icon.png" />\n    <allow-navigation href="*" />\n    <preference name="Fullscreen" value="true" />\n    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="icon.png" />\n    <preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />\n    <preference name="Orientation" value="portrait" />\n    <preference name="DisallowOverscroll" value="true" />\n</widget>|g' config.xml
+          sed -i 's|</widget>|    <icon src="icon.png" />\n    <allow-navigation href="*" />\n    <preference name="Fullscreen" value="true" />\n</widget>|g' config.xml
           cordova build android
           
       - name: Publish to GitHub Releases (Microsoft CDN)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # নামের মাঝখানের স্পেস সরিয়ে ফেলা হচ্ছে (URL ঠিক রাখার জন্য)
-          SAFE_NAME=$(echo "${{ github.event.inputs.app_name }}" | tr -cd 'A-Za-z0-9_-')
           APK_PATH="app/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
-          mv "$APK_PATH" "./${SAFE_NAME}.apk"
-          
-          # অটোমেটিক পাবলিক রিলিজ তৈরি করা
-          gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"
+          mv "$APK_PATH" "./app.apk"
+          gh release create "v${{ github.run_id }}" "./app.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"

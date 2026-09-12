@@ -77,7 +77,8 @@ jobs:
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
           
           # ErrorUrl প্রিফারেন্স অ্যাড করা হলো
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n    <preference name=\"ErrorUrl\" value=\"offline.html\" />\n</widget>|g" config.xml
+          # ErrorUrl প্রিফারেন্স অ্যাড করা হলো (Android Absolute Path দিয়ে)
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n    <preference name=\"ErrorUrl\" value=\"file:///android_asset/www/offline.html\" />\n    <preference name=\"LoadUrlTimeoutValue\" value=\"15000\" />\n</widget>|g" config.xml
           
           cordova build android
           

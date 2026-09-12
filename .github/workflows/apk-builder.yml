@@ -3,13 +3,16 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Website URL'
         required: true
       app_name:
-        description: 'App Name'
         required: true
       icon_url:
-        description: 'App Icon URL'
+        required: true
+      package_name:
+        required: true
+      version:
+        required: true
+      splash_color:
         required: true
 
 permissions:
@@ -36,23 +39,22 @@ jobs:
         run: npm install -g cordova
       - name: Create App
         run: |
-          cordova create app com.webapk.app${{ github.run_id }} "App"
+          cordova create app "${{ github.event.inputs.package_name }}" "App"
           cd app
           cordova platform add android
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
           sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
-          sed -i 's|</widget>|    <icon src="icon.png" />\n    <allow-navigation href="*" />\n    <preference name="Fullscreen" value="true" />\n</widget>|g' config.xml
+          sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
           cordova build android
           
       - name: Publish to GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # ইউজারের দেওয়া নাম থেকে স্পেস ও স্পেশাল ক্যারেক্টার মুছে ক্লিন নাম তৈরি করা হচ্ছে
           SAFE_NAME=$(echo "${{ github.event.inputs.app_name }}" | tr -cd 'A-Za-z0-9_-')
           if [ -z "$SAFE_NAME" ]; then SAFE_NAME="App"; fi
-          
           APK_PATH="app/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
           mv "$APK_PATH" "./${SAFE_NAME}.apk"
           gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"

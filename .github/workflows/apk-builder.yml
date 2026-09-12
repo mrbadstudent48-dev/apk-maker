@@ -40,9 +40,9 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           
-          wget -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
+          wget -q -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
           
-          # ফিক্স: Gradle ফাইলগুলো সঠিক মাল্টি-লাইন সিনট্যাক্সে সাজানো হয়েছে
+          # ফিক্স: মডার্ন Gradle 8+ স্ট্যান্ডার্ড (পুরনো buildscript বাদ দেওয়া হয়েছে)
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -58,18 +58,14 @@ jobs:
                   mavenCentral()
               }
           }
+          rootProject.name = "App"
           include ':app'
           EOF
           
+          # লেটেস্ট মডার্ন প্লাগিন সিস্টেম
           cat << 'EOF' > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.1'
-              }
+          plugins {
+              id 'com.android.application' version '8.1.1' apply false
           }
           EOF
           
@@ -86,6 +82,10 @@ jobs:
                   targetSdk 34
                   versionCode 1
                   versionName '${{ github.event.inputs.version }}'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
               }
           }
           dependencies {

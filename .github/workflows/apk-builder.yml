@@ -31,8 +31,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # ========================================================
+      # ফিক্স: গিটহাবের অফিশিয়াল অ্যাকশন দিয়ে সার্ভারকে 
+      # প্রোজেক্ট বিল্ড করার আগেই Gradle 8.4 এ ফিক্স করা হলো।
+      # ========================================================
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
 
       - name: Generate Pure Native Android Project
         run: |
@@ -45,7 +51,6 @@ jobs:
           
           wget -q -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
           
-          # ফিক্স ১: AndroidX সাপোর্ট চালু করা হলো
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.enableJetifier=true
@@ -232,10 +237,7 @@ jobs:
           EOF
 
       - name: Build Pure Native APK
-        run: |
-          # ফিক্স ২: গিটহাবকে নির্দিষ্ট করে Gradle 8.4 ভার্সন ব্যবহার করতে বলা হচ্ছে
-          gradle wrapper --gradle-version 8.4
-          ./gradlew assembleDebug
+        run: gradle assembleDebug
         
       - name: Publish to GitHub Releases
         env:

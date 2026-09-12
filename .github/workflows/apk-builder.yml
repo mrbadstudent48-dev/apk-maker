@@ -43,9 +43,7 @@ jobs:
           cd app
           cordova platform add android
           
-          # ========================================================
-          # ম্যাজিক প্লাগিন: InAppBrowser (এটিই আমাদের সমস্যার ১০০% সমাধান)
-          # ========================================================
+          # InAppBrowser প্লাগিন
           cordova plugin add cordova-plugin-inappbrowser
           
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
@@ -54,9 +52,8 @@ jobs:
           <!DOCTYPE html>
           <html>
           <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
             <title>Loading</title>
-            <!-- Cordova এর নিজস্ব স্ক্রিপ্ট যা প্লাগিনকে কাজ করাবে -->
             <script src="cordova.js"></script>
             <style>
               body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; background: #ffffff; text-align: center; }
@@ -71,13 +68,11 @@ jobs:
           </head>
           <body>
             
-            <!-- লোডিং স্ক্রিন -->
             <div id="loading-screen">
               <div class="loader"></div>
-              <p style="margin-top:20px; color:#666;">Connecting to server...</p>
+              <p style="margin-top:20px; color:#666; font-weight: bold;">Loading Experience...</p>
             </div>
 
-            <!-- অফলাইন স্ক্রিন -->
             <div id="offline-screen">
               <div class="icon">📶❌</div>
               <h2>No Internet Connection</h2>
@@ -102,24 +97,32 @@ jobs:
               function launchApp() {
                   showLoading();
                   
-                  // ১. সাধারণ চেক
                   if (!navigator.onLine) {
                       setTimeout(showOffline, 500);
                       return;
                   }
 
-                  // ২. ম্যাজিক: ফুল-স্ক্রিন অদৃশ্য ব্রাউজার ওপেন হচ্ছে
-                  // location=no (URL বার লুকাবে), hardwareback=yes (অ্যান্ড্রয়েডের ব্যাক বাটন কাজ করবে)
-                  iabRef = cordova.InAppBrowser.open(targetUrl, '_blank', 'location=no,toolbar=no,zoom=no,hardwareback=yes');
+                  // ফিক্স ১ ও ৩: hidden=yes (সাদা স্ক্রিন লুকাবে) এবং hideurlbar=yes
+                  iabRef = cordova.InAppBrowser.open(targetUrl, '_blank', 'location=no,toolbar=no,zoom=no,hardwareback=yes,hidden=yes,hideurlbar=yes');
 
-                  // ৩. যদি ওয়েবসাইট কোনো এরর খায় (ERR_NAME_NOT_RESOLVED), তবে সাথে সাথে এটি রান হবে
+                  // ফিক্স ২: ওয়েবসাইট ১০০% লোড হওয়ার পর ধুপ করে স্ক্রিনে আসবে (সাদা পেজ আর থাকবে না)
+                  iabRef.addEventListener('loadstop', function(event) {
+                      iabRef.show();
+                  });
+
                   iabRef.addEventListener('loaderror', function(event) {
-                      iabRef.close(); // এরর পেজটি সাথে সাথে বন্ধ করে দিবে
-                      showOffline();  // আমাদের সুন্দর অফলাইন পেজটি দেখাবে
+                      iabRef.close();
+                      showOffline();
+                  });
+
+                  // ফিক্স ৪: ইউজার ব্যাক বাটন চাপতে চাপতে ব্রাউজার কেটে দিলে, পুরো অ্যাপটাই সুন্দর করে এক্সিট হয়ে যাবে!
+                  iabRef.addEventListener('exit', function(event) {
+                      if (navigator.app) {
+                          navigator.app.exitApp();
+                      }
                   });
               }
 
-              // অ্যাপ রেডি হওয়ার সাথে সাথে লজিক শুরু হবে
               document.addEventListener('deviceready', function() {
                   launchApp();
               }, false);
@@ -131,8 +134,8 @@ jobs:
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
           
-          # এখানে আমরা index.html কেই ডিফল্ট রাখলাম, ওয়েবসাইটের লিংক দিলাম না।
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
+          # ফুল-স্ক্রিন মোড আরো কড়াকড়িভাবে এনফোর্স করা হলো
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"HideKeyboardFormAccessoryBar\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
           
           cordova build android
           

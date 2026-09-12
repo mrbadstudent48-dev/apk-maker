@@ -1,4 +1,4 @@
-name: Generate APK
+name: Generate Native APK
 on:
   workflow_dispatch:
     inputs:
@@ -24,127 +24,198 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Install Cordova
-        run: npm install -g cordova
-      - name: Create App
+
+      - name: Generate Pure Native Android Project
         run: |
-          cordova create app "${{ github.event.inputs.package_name }}" "App"
-          cd app
-          cordova platform add android
+          # প্যাকেজ নেম ডিরেক্টরি তৈরি করা (যেমন: com/mycompany/app)
+          PKG_PATH=$(echo "${{ github.event.inputs.package_name }}" | tr '.' '/')
           
-          # InAppBrowser প্লাগিন
-          cordova plugin add cordova-plugin-inappbrowser
+          mkdir -p app/src/main/java/$PKG_PATH
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
           
-          wget -O icon.png "${{ github.event.inputs.icon_url }}"
+          # ১. গিটহাব থেকে অ্যাপের আইকন ডাউনলোড
+          wget -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
           
-          cat << 'EOF' > www/index.html
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-            <title>Loading</title>
-            <script src="cordova.js"></script>
-            <style>
-              body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; background: #ffffff; text-align: center; }
-              .icon { font-size: 70px; margin-bottom: 15px; }
-              h2 { color: #333; margin: 0 0 10px; font-size: 22px; }
-              p { color: #666; margin: 0 0 25px; padding: 0 20px; font-size: 15px; }
-              button { background: #4f46e5; color: #fff; border: none; padding: 12px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-              .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-              #offline-screen, #loading-screen { display: none; flex-direction: column; align-items: center; }
-            </style>
-          </head>
-          <body>
-            
-            <div id="loading-screen">
-              <div class="loader"></div>
-              <p style="margin-top:20px; color:#666; font-weight: bold;">Loading Experience...</p>
-            </div>
-
-            <div id="offline-screen">
-              <div class="icon">📶❌</div>
-              <h2>No Internet Connection</h2>
-              <p>Please check your wifi or mobile data and try again.</p>
-              <button onclick="launchApp()">Try Again</button>
-            </div>
-
-            <script>
-              var targetUrl = "${{ github.event.inputs.url }}";
-              var iabRef = null;
-
-              function showOffline() {
-                  document.getElementById('loading-screen').style.display = 'none';
-                  document.getElementById('offline-screen').style.display = 'flex';
-              }
-
-              function showLoading() {
-                  document.getElementById('loading-screen').style.display = 'flex';
-                  document.getElementById('offline-screen').style.display = 'none';
-              }
-
-              function launchApp() {
-                  showLoading();
-                  
-                  if (!navigator.onLine) {
-                      setTimeout(showOffline, 500);
-                      return;
-                  }
-
-                  // ফিক্স ১ ও ৩: hidden=yes (সাদা স্ক্রিন লুকাবে) এবং hideurlbar=yes
-                  iabRef = cordova.InAppBrowser.open(targetUrl, '_blank', 'location=no,toolbar=no,zoom=no,hardwareback=yes,hidden=yes,hideurlbar=yes');
-
-                  // ফিক্স ২: ওয়েবসাইট ১০০% লোড হওয়ার পর ধুপ করে স্ক্রিনে আসবে (সাদা পেজ আর থাকবে না)
-                  iabRef.addEventListener('loadstop', function(event) {
-                      iabRef.show();
-                  });
-
-                  iabRef.addEventListener('loaderror', function(event) {
-                      iabRef.close();
-                      showOffline();
-                  });
-
-                  // ফিক্স ৪: ইউজার ব্যাক বাটন চাপতে চাপতে ব্রাউজার কেটে দিলে, পুরো অ্যাপটাই সুন্দর করে এক্সিট হয়ে যাবে!
-                  iabRef.addEventListener('exit', function(event) {
-                      if (navigator.app) {
-                          navigator.app.exitApp();
-                      }
-                  });
-              }
-
-              document.addEventListener('deviceready', function() {
-                  launchApp();
-              }, false);
-            </script>
-          </body>
-          </html>
+          # ২. অ্যান্ড্রয়েড সেটিংস ফাইল
+          cat << 'EOF' > settings.gradle
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          include ':app'
           EOF
           
-          sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
-          sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
+          cat << 'EOF' > build.gradle
+          buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.1' } }
+          EOF
           
-          # ফুল-স্ক্রিন মোড আরো কড়াকড়িভাবে এনফোর্স করা হলো
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"HideKeyboardFormAccessoryBar\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
+          cat << 'EOF' > app/build.gradle
+          plugins { id 'com.android.application' }
+          android {
+              namespace '${{ github.event.inputs.package_name }}'
+              compileSdk 34
+              defaultConfig {
+                  applicationId '${{ github.event.inputs.package_name }}'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '${{ github.event.inputs.version }}'
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
           
-          cordova build android
+          # ৩. ডায়নামিক স্প্ল্যাশ কালার যুক্ত করা
+          cat << 'EOF' > app/src/main/res/values/colors.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="splashColor">${{ github.event.inputs.splash_color }}</color>
+          </resources>
+          EOF
           
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.App.Splash" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="android:windowBackground">@color/splashColor</item>
+                  <item name="android:statusBarColor">@color/splashColor</item>
+              </style>
+              <style name="Theme.App.Main" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="android:statusBarColor">#000000</item>
+              </style>
+          </resources>
+          EOF
+          
+          # ৪. অ্যান্ড্রয়েড মেনিফেস্ট (পারমিশন)
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <application android:allowBackup="true" android:icon="@mipmap/ic_launcher" android:label="${{ github.event.inputs.app_name }}" android:theme="@style/Theme.App.Splash">
+                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|keyboardHidden|screenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          
+          # ৫. নেটিভ অফলাইন ডিজাইন (XML)
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
+              <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent" />
+              <LinearLayout android:id="@+id/offlineLayout" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:background="#FFFFFF" android:visibility="gone">
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📶❌" android:textSize="70sp" />
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="No Internet Connection" android:textStyle="bold" android:textSize="22sp" android:textColor="#333333" android:layout_marginTop="16dp"/>
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Please check your connection." android:textSize="16sp" android:textColor="#666666" android:layout_marginTop="8dp"/>
+              </LinearLayout>
+          </RelativeLayout>
+          EOF
+          
+          # ৬. মেইন ব্রেইন (Java Logic)
+          cat << 'EOF' > app/src/main/java/$PKG_PATH/MainActivity.java
+          package ${{ github.event.inputs.package_name }};
+          
+          import android.content.Context;
+          import android.net.ConnectivityManager;
+          import android.net.Network;
+          import android.net.NetworkCapabilities;
+          import android.net.NetworkRequest;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.LinearLayout;
+          import androidx.annotation.NonNull;
+          import androidx.appcompat.app.AppCompatActivity;
+          
+          public class MainActivity extends AppCompatActivity {
+              private WebView webView;
+              private LinearLayout offlineLayout;
+              private boolean isLoaded = false;
+              private String targetUrl = "${{ github.event.inputs.url }}";
+          
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  setTheme(R.style.Theme_App_Main); // স্প্ল্যাশ রিমুভ
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+          
+                  webView = findViewById(R.id.webView);
+                  offlineLayout = findViewById(R.id.offlineLayout);
+          
+                  WebSettings webSettings = webView.getSettings();
+                  webSettings.setJavaScriptEnabled(true);
+                  webSettings.setDomStorageEnabled(true);
+                  
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageFinished(WebView view, String url) { isLoaded = true; }
+                  });
+          
+                  setupNetworkListener();
+              }
+          
+              private void setupNetworkListener() {
+                  ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                  NetworkRequest request = new NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build();
+                  
+                  cm.registerNetworkCallback(request, new ConnectivityManager.NetworkCallback() {
+                      @Override
+                      public void onAvailable(@NonNull Network network) {
+                          runOnUiThread(() -> {
+                              offlineLayout.setVisibility(View.GONE);
+                              webView.setVisibility(View.VISIBLE);
+                              if (!isLoaded) webView.loadUrl(targetUrl);
+                          });
+                      }
+                      @Override
+                      public void onLost(@NonNull Network network) {
+                          runOnUiThread(() -> {
+                              if (!isLoaded) { webView.setVisibility(View.GONE); offlineLayout.setVisibility(View.VISIBLE); }
+                          });
+                      }
+                  });
+                  
+                  Network activeNetwork = cm.getActiveNetwork();
+                  NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
+                  if (caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                      webView.setVisibility(View.GONE); offlineLayout.setVisibility(View.VISIBLE);
+                  } else {
+                      webView.loadUrl(targetUrl);
+                  }
+              }
+          
+              @Override
+              public void onBackPressed() {
+                  if (webView.getVisibility() == View.VISIBLE && webView.canGoBack()) { webView.goBack(); } 
+                  else { super.onBackPressed(); }
+              }
+          }
+          EOF
+
+      - name: Build Pure Native APK
+        run: gradle assembleDebug
+        
       - name: Publish to GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SAFE_NAME=$(echo "${{ github.event.inputs.app_name }}" | tr -cd 'A-Za-z0-9_-')
           if [ -z "$SAFE_NAME" ]; then SAFE_NAME="App"; fi
-          APK_PATH="app/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
           mv "$APK_PATH" "./${SAFE_NAME}.apk"
-          gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Automated APK Build"
+          gh release create "v${{ github.run_id }}" "./${SAFE_NAME}.apk" -t "Build ${{ github.run_id }}" -n "Professional Native APK Build"

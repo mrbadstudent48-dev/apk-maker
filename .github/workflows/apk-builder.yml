@@ -45,34 +45,54 @@ jobs:
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
           
           # ========================================================
-          # অফিশিয়াল ErrorUrl পেজ তৈরি (Application Error পপ-আপ বন্ধ করবে)
+          # পৃথিবীর সবচেয়ে সহজ এবং পারফেক্ট ডিফল্ট পেজ (index.html)
           # ========================================================
-          cat << 'EOF' > www/offline.html
+          cat << 'EOF' > www/index.html
           <!DOCTYPE html>
           <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>No Internet</title>
+            <title>App</title>
             <style>
-              body{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#333;text-align:center;padding:20px;}
-              .icon{font-size:60px;margin-bottom:15px;}
-              h2{margin:0 0 10px;color:#0f172a;}
-              p{margin:0 0 25px;color:#64748b;font-size:15px;}
-              button{background:#4f46e5;color:#fff;border:none;padding:12px 25px;border-radius:8px;font-size:16px;font-weight:bold;box-shadow:0 4px 6px rgba(79,70,229,0.3);transition:0.2s;}
-              button:active{transform:scale(0.95);}
+              body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; background: #ffffff; text-align: center; }
+              #offline { display: none; }
+              .icon { font-size: 70px; margin-bottom: 15px; }
+              h2 { color: #333; margin: 0 0 10px; }
+              p { color: #666; margin: 0 0 25px; padding: 0 20px; }
+              button { background: #4f46e5; color: #fff; border: none; padding: 12px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; }
+              .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             </style>
           </head>
           <body>
-            <div class="icon">📶❌</div>
-            <h2>No Internet Connection</h2>
-            <p>Please check your wifi or mobile data and try again.</p>
-            <button onclick="window.location.href='${{ github.event.inputs.url }}'">Retry Connection</button>
+            <div class="loader" id="loader"></div>
+            
+            <div id="offline">
+              <div class="icon">📶❌</div>
+              <h2>No Internet Connection</h2>
+              <p>Please check your wifi or mobile data and try again.</p>
+              <button onclick="checkConnection()">Try Again</button>
+            </div>
             
             <script>
-               // ডাটা অন করার সাথে সাথেই অটোমেটিক সাইটে নিয়ে যাবে
-               window.addEventListener('online', function() {
-                   window.location.href = '${{ github.event.inputs.url }}';
-               });
+              var url = "${{ github.event.inputs.url }}";
+              
+              function checkConnection() {
+                  document.getElementById('loader').style.display = 'block';
+                  document.getElementById('offline').style.display = 'none';
+                  
+                  if (navigator.onLine) {
+                      window.location.replace(url);
+                  } else {
+                      setTimeout(function() {
+                          document.getElementById('loader').style.display = 'none';
+                          document.getElementById('offline').style.display = 'block';
+                      }, 500);
+                  }
+              }
+              
+              window.onload = checkConnection;
+              window.addEventListener('online', checkConnection);
             </script>
           </body>
           </html>
@@ -80,13 +100,11 @@ jobs:
           # ========================================================
           
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
-          
-          # এখানে আমরা সরাসরি ওয়েবসাইটের লিংকই দিব
-          sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
           
-          # ম্যাজিক: ErrorUrl এর ভ্যালু হিসেবে শুধু offline.html দেওয়া হলো!
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n    <preference name=\"ErrorUrl\" value=\"offline.html\" />\n    <preference name=\"LoadUrlTimeoutValue\" value=\"10000\" />\n</widget>|g" config.xml
+          # খেয়াল করুন: এবার আমি <content src="index.html" /> পরিবর্তন করিনি।
+          # অ্যাপটা গ্যারান্টেড আগে উপরের সুন্দর পেজটাই ওপেন করবে।
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
           
           cordova build android
           

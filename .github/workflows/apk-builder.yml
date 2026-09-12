@@ -43,10 +43,42 @@ jobs:
           cd app
           cordova platform add android
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
+          
+          # ========================================================
+          # ম্যাজিক: কাস্টম অফলাইন পেজ তৈরি করা হচ্ছে (No Internet)
+          # ========================================================
+          cat << 'EOF' > www/offline.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>No Internet</title>
+            <style>
+              body{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#333;text-align:center;padding:20px;}
+              .icon{font-size:60px;margin-bottom:15px;}
+              h2{margin:0 0 10px;color:#0f172a;}
+              p{margin:0 0 25px;color:#64748b;font-size:15px;}
+              button{background:#4f46e5;color:#fff;border:none;padding:12px 25px;border-radius:8px;font-size:16px;font-weight:bold;box-shadow:0 4px 6px rgba(79,70,229,0.3);transition:0.2s;}
+              button:active{transform:scale(0.95);}
+            </style>
+          </head>
+          <body>
+            <div class="icon">📶❌</div>
+            <h2>No Internet Connection</h2>
+            <p>Please check your wifi or mobile data and try again.</p>
+            <button onclick="window.location.href='${{ github.event.inputs.url }}'">Retry Connection</button>
+          </body>
+          </html>
+          EOF
+          # ========================================================
+          
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
           sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
+          
+          # ErrorUrl প্রিফারেন্স অ্যাড করা হলো
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n    <preference name=\"ErrorUrl\" value=\"offline.html\" />\n</widget>|g" config.xml
+          
           cordova build android
           
       - name: Publish to GitHub Releases

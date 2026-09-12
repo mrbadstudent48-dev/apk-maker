@@ -33,7 +33,6 @@ jobs:
 
       - name: Generate Pure Native Android Project
         run: |
-          # প্যাকেজ নেম ডিরেক্টরি তৈরি করা (যেমন: com/mycompany/app)
           PKG_PATH=$(echo "${{ github.event.inputs.package_name }}" | tr '.' '/')
           
           mkdir -p app/src/main/java/$PKG_PATH
@@ -41,22 +40,43 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           
-          # ১. গিটহাব থেকে অ্যাপের আইকন ডাউনলোড
           wget -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
           
-          # ২. অ্যান্ড্রয়েড সেটিংস ফাইল
+          # ফিক্স: Gradle ফাইলগুলো সঠিক মাল্টি-লাইন সিনট্যাক্সে সাজানো হয়েছে
           cat << 'EOF' > settings.gradle
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           include ':app'
           EOF
           
           cat << 'EOF' > build.gradle
-          buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.1' } }
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.1'
+              }
+          }
           EOF
           
           cat << 'EOF' > app/build.gradle
-          plugins { id 'com.android.application' }
+          plugins {
+              id 'com.android.application'
+          }
           android {
               namespace '${{ github.event.inputs.package_name }}'
               compileSdk 34
@@ -73,7 +93,6 @@ jobs:
           }
           EOF
           
-          # ৩. ডায়নামিক স্প্ল্যাশ কালার যুক্ত করা
           cat << 'EOF' > app/src/main/res/values/colors.xml
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -94,7 +113,6 @@ jobs:
           </resources>
           EOF
           
-          # ৪. অ্যান্ড্রয়েড মেনিফেস্ট (পারমিশন)
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -111,7 +129,6 @@ jobs:
           </manifest>
           EOF
           
-          # ৫. নেটিভ অফলাইন ডিজাইন (XML)
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
@@ -124,7 +141,6 @@ jobs:
           </RelativeLayout>
           EOF
           
-          # ৬. মেইন ব্রেইন (Java Logic)
           cat << 'EOF' > app/src/main/java/$PKG_PATH/MainActivity.java
           package ${{ github.event.inputs.package_name }};
           
@@ -150,7 +166,7 @@ jobs:
           
               @Override
               protected void onCreate(Bundle savedInstanceState) {
-                  setTheme(R.style.Theme_App_Main); // স্প্ল্যাশ রিমুভ
+                  setTheme(R.style.Theme_App_Main);
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
           

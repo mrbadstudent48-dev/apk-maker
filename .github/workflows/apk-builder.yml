@@ -42,68 +42,96 @@ jobs:
           cordova create app "${{ github.event.inputs.package_name }}" "App"
           cd app
           cordova platform add android
-          wget -O icon.png "${{ github.event.inputs.icon_url }}"
           
           # ========================================================
-          # পৃথিবীর সবচেয়ে সহজ এবং পারফেক্ট ডিফল্ট পেজ (index.html)
+          # ম্যাজিক প্লাগিন: InAppBrowser (এটিই আমাদের সমস্যার ১০০% সমাধান)
           # ========================================================
+          cordova plugin add cordova-plugin-inappbrowser
+          
+          wget -O icon.png "${{ github.event.inputs.icon_url }}"
+          
           cat << 'EOF' > www/index.html
           <!DOCTYPE html>
           <html>
           <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>App</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <title>Loading</title>
+            <!-- Cordova এর নিজস্ব স্ক্রিপ্ট যা প্লাগিনকে কাজ করাবে -->
+            <script src="cordova.js"></script>
             <style>
               body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; background: #ffffff; text-align: center; }
-              #offline { display: none; }
               .icon { font-size: 70px; margin-bottom: 15px; }
-              h2 { color: #333; margin: 0 0 10px; }
-              p { color: #666; margin: 0 0 25px; padding: 0 20px; }
-              button { background: #4f46e5; color: #fff; border: none; padding: 12px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; }
+              h2 { color: #333; margin: 0 0 10px; font-size: 22px; }
+              p { color: #666; margin: 0 0 25px; padding: 0 20px; font-size: 15px; }
+              button { background: #4f46e5; color: #fff; border: none; padding: 12px 30px; border-radius: 8px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
               .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
               @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              #offline-screen, #loading-screen { display: none; flex-direction: column; align-items: center; }
             </style>
           </head>
           <body>
-            <div class="loader" id="loader"></div>
             
-            <div id="offline">
+            <!-- লোডিং স্ক্রিন -->
+            <div id="loading-screen">
+              <div class="loader"></div>
+              <p style="margin-top:20px; color:#666;">Connecting to server...</p>
+            </div>
+
+            <!-- অফলাইন স্ক্রিন -->
+            <div id="offline-screen">
               <div class="icon">📶❌</div>
               <h2>No Internet Connection</h2>
               <p>Please check your wifi or mobile data and try again.</p>
-              <button onclick="checkConnection()">Try Again</button>
+              <button onclick="launchApp()">Try Again</button>
             </div>
-            
+
             <script>
-              var url = "${{ github.event.inputs.url }}";
-              
-              function checkConnection() {
-                  document.getElementById('loader').style.display = 'block';
-                  document.getElementById('offline').style.display = 'none';
-                  
-                  if (navigator.onLine) {
-                      window.location.replace(url);
-                  } else {
-                      setTimeout(function() {
-                          document.getElementById('loader').style.display = 'none';
-                          document.getElementById('offline').style.display = 'block';
-                      }, 500);
-                  }
+              var targetUrl = "${{ github.event.inputs.url }}";
+              var iabRef = null;
+
+              function showOffline() {
+                  document.getElementById('loading-screen').style.display = 'none';
+                  document.getElementById('offline-screen').style.display = 'flex';
               }
-              
-              window.onload = checkConnection;
-              window.addEventListener('online', checkConnection);
+
+              function showLoading() {
+                  document.getElementById('loading-screen').style.display = 'flex';
+                  document.getElementById('offline-screen').style.display = 'none';
+              }
+
+              function launchApp() {
+                  showLoading();
+                  
+                  // ১. সাধারণ চেক
+                  if (!navigator.onLine) {
+                      setTimeout(showOffline, 500);
+                      return;
+                  }
+
+                  // ২. ম্যাজিক: ফুল-স্ক্রিন অদৃশ্য ব্রাউজার ওপেন হচ্ছে
+                  // location=no (URL বার লুকাবে), hardwareback=yes (অ্যান্ড্রয়েডের ব্যাক বাটন কাজ করবে)
+                  iabRef = cordova.InAppBrowser.open(targetUrl, '_blank', 'location=no,toolbar=no,zoom=no,hardwareback=yes');
+
+                  // ৩. যদি ওয়েবসাইট কোনো এরর খায় (ERR_NAME_NOT_RESOLVED), তবে সাথে সাথে এটি রান হবে
+                  iabRef.addEventListener('loaderror', function(event) {
+                      iabRef.close(); // এরর পেজটি সাথে সাথে বন্ধ করে দিবে
+                      showOffline();  // আমাদের সুন্দর অফলাইন পেজটি দেখাবে
+                  });
+              }
+
+              // অ্যাপ রেডি হওয়ার সাথে সাথে লজিক শুরু হবে
+              document.addEventListener('deviceready', function() {
+                  launchApp();
+              }, false);
             </script>
           </body>
           </html>
           EOF
-          # ========================================================
           
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
           
-          # খেয়াল করুন: এবার আমি <content src="index.html" /> পরিবর্তন করিনি।
-          # অ্যাপটা গ্যারান্টেড আগে উপরের সুন্দর পেজটাই ওপেন করবে।
+          # এখানে আমরা index.html কেই ডিফল্ট রাখলাম, ওয়েবসাইটের লিংক দিলাম না।
           sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
           
           cordova build android

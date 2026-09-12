@@ -45,65 +45,34 @@ jobs:
           wget -O icon.png "${{ github.event.inputs.icon_url }}"
           
           # ========================================================
-          # আপনার আইডিয়া অনুযায়ী: স্মার্ট লোকাল ডিফল্ট টেমপ্লেট
-          # এটি ইন্টারনেট চেক করবে, থাকলে সাইটে যাবে, না থাকলে অফলাইন পেজ দেখাবে
+          # অফিশিয়াল ErrorUrl পেজ তৈরি (Application Error পপ-আপ বন্ধ করবে)
           # ========================================================
-          cat << 'EOF' > www/index.html
+          cat << 'EOF' > www/offline.html
           <!DOCTYPE html>
           <html>
           <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-            <title>Loading...</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>No Internet</title>
             <style>
-              body { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #333; text-align: center; padding: 20px; }
-              .icon { font-size: 60px; margin-bottom: 15px; }
-              h2 { margin: 0 0 10px; color: #0f172a; }
-              p { margin: 0 0 25px; color: #64748b; font-size: 15px; }
-              button { background: #4f46e5; color: #fff; border: none; padding: 12px 25px; border-radius: 8px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(79,70,229,0.3); transition: 0.2s; }
-              button:active { transform: scale(0.95); }
-              /* সুন্দর একটি লোডিং এনিমেশন */
-              .loader { border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; display: none; }
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              body{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#333;text-align:center;padding:20px;}
+              .icon{font-size:60px;margin-bottom:15px;}
+              h2{margin:0 0 10px;color:#0f172a;}
+              p{margin:0 0 25px;color:#64748b;font-size:15px;}
+              button{background:#4f46e5;color:#fff;border:none;padding:12px 25px;border-radius:8px;font-size:16px;font-weight:bold;box-shadow:0 4px 6px rgba(79,70,229,0.3);transition:0.2s;}
+              button:active{transform:scale(0.95);}
             </style>
           </head>
           <body>
-            <div class="loader" id="loader"></div>
-            
-            <div id="offline-box" style="display: none; flex-direction: column; align-items: center;">
-              <div class="icon">📶❌</div>
-              <h2>No Internet Connection</h2>
-              <p>Please check your wifi or mobile data and try again.</p>
-              <button onclick="retry()">Retry Connection</button>
-            </div>
+            <div class="icon">📶❌</div>
+            <h2>No Internet Connection</h2>
+            <p>Please check your wifi or mobile data and try again.</p>
+            <button onclick="window.location.href='${{ github.event.inputs.url }}'">Retry Connection</button>
             
             <script>
-              const targetUrl = "${{ github.event.inputs.url }}";
-              const body = document.body;
-              const loader = document.getElementById('loader');
-              const offlineBox = document.getElementById('offline-box');
-              
-              function retry() {
-                  offlineBox.style.display = 'none';
-                  loader.style.display = 'block';
-                  
-                  // ইন্টারনেট চেক করছে
-                  if (navigator.onLine) {
-                      window.location.replace(targetUrl);
-                  } else {
-                      setTimeout(() => {
-                          loader.style.display = 'none';
-                          offlineBox.style.display = 'flex';
-                      }, 800);
-                  }
-              }
-              
-              window.onload = () => {
-                  body.style.display = 'flex';
-                  retry();
-              };
-              
-              // ইউজার ডাটা অন করলেই নিজে নিজে রিফ্রেশ হয়ে সাইটে চলে যাবে!
-              window.addEventListener('online', retry);
+               // ডাটা অন করার সাথে সাথেই অটোমেটিক সাইটে নিয়ে যাবে
+               window.addEventListener('online', function() {
+                   window.location.href = '${{ github.event.inputs.url }}';
+               });
             </script>
           </body>
           </html>
@@ -111,11 +80,13 @@ jobs:
           # ========================================================
           
           sed -i 's|<name>App</name>|<name>${{ github.event.inputs.app_name }}</name>|g' config.xml
+          
+          # এখানে আমরা সরাসরি ওয়েবসাইটের লিংকই দিব
+          sed -i 's|<content src="index.html" />|<content src="${{ github.event.inputs.url }}" />|g' config.xml
           sed -i 's|version="1.0.0"|version="${{ github.event.inputs.version }}"|g' config.xml
           
-          # খেয়াল করুন, আমরা <content src="index.html" /> পরিবর্তন করিনি। 
-          # ফলে অ্যাপটি ওপেন হয়েই আগে আমাদের সুন্দর টেমপ্লেটটি ওপেন করবে।
-          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n</widget>|g" config.xml
+          # ম্যাজিক: ErrorUrl এর ভ্যালু হিসেবে শুধু offline.html দেওয়া হলো!
+          sed -i "s|</widget>|    <icon src=\"icon.png\" />\n    <allow-navigation href=\"*\" />\n    <preference name=\"Fullscreen\" value=\"true\" />\n    <preference name=\"AndroidWindowSplashScreenAnimatedIcon\" value=\"icon.png\" />\n    <preference name=\"AndroidWindowSplashScreenBackground\" value=\"${{ github.event.inputs.splash_color }}\" />\n    <preference name=\"ErrorUrl\" value=\"offline.html\" />\n    <preference name=\"LoadUrlTimeoutValue\" value=\"10000\" />\n</widget>|g" config.xml
           
           cordova build android
           

@@ -31,6 +31,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Generate Pure Native Android Project
         run: |
           PKG_PATH=$(echo "${{ github.event.inputs.package_name }}" | tr '.' '/')
@@ -42,7 +45,13 @@ jobs:
           
           wget -q -O app/src/main/res/mipmap-xxxhdpi/ic_launcher.png "${{ github.event.inputs.icon_url }}"
           
-          # ফিক্স: মডার্ন Gradle 8+ স্ট্যান্ডার্ড (পুরনো buildscript বাদ দেওয়া হয়েছে)
+          # ফিক্স ১: AndroidX সাপোর্ট চালু করা হলো
+          cat << 'EOF' > gradle.properties
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+          
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -62,7 +71,6 @@ jobs:
           include ':app'
           EOF
           
-          # লেটেস্ট মডার্ন প্লাগিন সিস্টেম
           cat << 'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.1.1' apply false
@@ -224,7 +232,10 @@ jobs:
           EOF
 
       - name: Build Pure Native APK
-        run: gradle assembleDebug
+        run: |
+          # ফিক্স ২: গিটহাবকে নির্দিষ্ট করে Gradle 8.4 ভার্সন ব্যবহার করতে বলা হচ্ছে
+          gradle wrapper --gradle-version 8.4
+          ./gradlew assembleDebug
         
       - name: Publish to GitHub Releases
         env:
